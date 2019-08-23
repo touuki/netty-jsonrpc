@@ -1,13 +1,15 @@
-package com.touuki.netty.websocket.jsonrpc;
+package com.touuki.netty.jsonrpc;
 
 import java.io.Serializable;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.JsonNode;
 
+@JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(Include.NON_NULL)
 public class JsonRpcResponse {
 	
@@ -44,6 +46,10 @@ public class JsonRpcResponse {
 
 	@Override
 	public String toString() {
-		return "JsonRpcResponse [jsonrpc=" + jsonrpc + ", id=" + id + ", result=" + result + ", error=" + error + "]";
+		if (error == null) {			
+			return "JsonRpcResponse [jsonrpc=" + jsonrpc + ", id=" + id + ", result=" + result + ", error=" + error + "]";
+		} else {
+			return "JsonRpcResponse [jsonrpc=" + jsonrpc + ", id=" + id + ", result=" + result + ", error=" + error.toDescribeString() + "]";
+		}
 	}
 }

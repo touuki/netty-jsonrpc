@@ -1,4 +1,4 @@
-package com.touuki.netty.websocket.jsonrpc;
+package com.touuki.netty.jsonrpc;
 
 import java.util.concurrent.CompletableFuture;
 

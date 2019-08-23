@@ -1,12 +1,20 @@
-package com.touuki.netty.websocket.jsonrpc;
+package com.touuki.netty.jsonrpc.websocket;
 
 import java.io.IOException;
 import java.io.Serializable;
 import java.util.List;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.touuki.netty.jsonrpc.JsonRpcException;
+import com.touuki.netty.jsonrpc.JsonRpcObject;
+import com.touuki.netty.jsonrpc.JsonRpcRequest;
+import com.touuki.netty.jsonrpc.JsonRpcResponse;
+import com.touuki.netty.jsonrpc.TextFrameToJsonRpcDecoder;
 
 import io.netty.channel.ChannelHandler.Sharable;
 import io.netty.channel.ChannelFuture;
@@ -19,18 +27,23 @@ import io.netty.handler.timeout.IdleStateEvent;
 
 @Sharable
 public class JsonRpcTextFrameCodec extends MessageToMessageCodec<TextWebSocketFrame, JsonRpcObject> {
-	public static final String JSONRPC_VERSION = "2.0";
+	private static final Logger log = LoggerFactory.getLogger(JsonRpcTextFrameCodec.class);
+
+	public static final String DEFAULT_JSONRPC_VERSION = "2.0";
 	private final ObjectMapper objectMapper = new ObjectMapper();
 
 	@Override
-	protected void encode(ChannelHandlerContext ctx, JsonRpcObject msg, List<Object> out) throws JsonProcessingException {
+	protected void encode(ChannelHandlerContext ctx, JsonRpcObject msg, List<Object> out)
+			throws JsonProcessingException {
 		try {
 			out.add(new TextWebSocketFrame(objectMapper.writeValueAsString(msg)));
 		} catch (JsonProcessingException e) {
 			if (msg instanceof JsonRpcResponse) {
 				returnError(ctx, ((JsonRpcResponse) msg).getId(), JsonRpcException.INTERNAL_ERROR);
+				log.error("Error during encode jsonrpc response: {}", msg, e);
 			} else if (msg instanceof JsonRpcRequest) {
 				returnError(ctx, ((JsonRpcRequest) msg).getId(), JsonRpcException.INTERNAL_ERROR);
+				log.error("Error during encode jsonrpc request: {}", msg, e);
 			}
 			throw e;
 		}
@@ -46,15 +59,7 @@ public class JsonRpcTextFrameCodec extends MessageToMessageCodec<TextWebSocketFr
 			} catch (IOException e) {
 				throw JsonRpcException.PARSE_ERROR;
 			}
-			if (node.has("id") && !node.get("id").isNull()) {
-				if (node.get("id").isTextual()) {
-					id = node.get("id").textValue();
-				} else if (node.get("id").isIntegralNumber()) {
-					id = node.get("id").asLong();
-				} else {
-					throw JsonRpcException.INVALID_REQUEST;
-				}
-			}
+			id = parseId(node.get("id"));
 			if (node.has("method")) {
 				try {
 					out.add(objectMapper.treeToValue(node, JsonRpcRequest.class));
@@ -65,7 +70,8 @@ public class JsonRpcTextFrameCodec extends MessageToMessageCodec<TextWebSocketFr
 				try {
 					out.add(objectMapper.treeToValue(node, JsonRpcResponse.class));
 				} catch (JsonProcessingException e) {
-					throw JsonRpcException.INVALID_RESPONSE;
+					log.warn("Invalid response received: channel:{}; remoteAddress:{}; cause:{}",
+							ctx.channel().id().asLongText(), ctx.channel().remoteAddress(), e.toString());
 				}
 			} else {
 				throw JsonRpcException.INVALID_REQUEST;
@@ -77,7 +83,7 @@ public class JsonRpcTextFrameCodec extends MessageToMessageCodec<TextWebSocketFr
 
 	@Override
 	public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
-		cause.printStackTrace();
+		log.error("Uncaught exception:", cause);
 		ctx.close();
 	}
 
@@ -90,8 +96,33 @@ public class JsonRpcTextFrameCodec extends MessageToMessageCodec<TextWebSocketFr
 		}
 	}
 
+	private Serializable parseId(JsonNode node) {
+		if (node == null || node.isNull()) {
+			return null;
+		}
+		if (node.isDouble()) {
+			return node.asDouble();
+		}
+		if (node.isFloatingPointNumber()) {
+			return node.asDouble();
+		}
+		if (node.isInt()) {
+			return node.asInt();
+		}
+		if (node.isLong()) {
+			return node.asLong();
+		}
+		if (node.isIntegralNumber()) {
+			return node.asInt();
+		}
+		if (node.isTextual()) {
+			return node.asText();
+		}
+		throw JsonRpcException.INVALID_REQUEST;
+	}
+
 	private void returnError(ChannelHandlerContext ctx, Serializable id, JsonRpcException jsonRpcException) {
-		JsonRpcResponse jsonRpcResponse = new JsonRpcResponse(JSONRPC_VERSION, id, null, jsonRpcException);
+		JsonRpcResponse jsonRpcResponse = new JsonRpcResponse(DEFAULT_JSONRPC_VERSION, id, null, jsonRpcException);
 		ctx.writeAndFlush(jsonRpcResponse).addListener((future) -> ctx.close());
 	}
 }

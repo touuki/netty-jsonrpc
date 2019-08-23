@@ -1,17 +1,12 @@
-package com.touuki.netty.websocket.jsonrpc;
-
-import java.util.HashMap;
-import java.util.Map;
+package com.touuki.netty.jsonrpc;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.fasterxml.jackson.annotation.JsonIgnoreType;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 
-@JsonIgnoreProperties({ "cause", "stackTrace", "localizedMessage", "suppressed" })
+@JsonIgnoreProperties(value = { "cause", "stackTrace", "localizedMessage", "suppressed" }, ignoreUnknown = true)
 @JsonInclude(Include.ALWAYS)
 public class JsonRpcException extends RuntimeException {
 	private static final long serialVersionUID = -7965782582127898499L;
@@ -22,10 +17,8 @@ public class JsonRpcException extends RuntimeException {
 	public static final JsonRpcException METHOD_PARAMS_INVALID = new JsonRpcException("Invalid params", -32602);
 	public static final JsonRpcException INTERNAL_ERROR = new JsonRpcException("Internal error", -32603);
 
-	public static final JsonRpcException INVALID_RESPONSE = new JsonRpcException("Invalid Response", -32099);
-
 	public static final int CUSTOM_SERVER_ERROR_UPPER = -32000;
-	public static final int CUSTOM_SERVER_ERROR_LOWER = -32096;
+	public static final int CUSTOM_SERVER_ERROR_LOWER = -32099;
 
 	private final int code;
 	@JsonInclude(Include.NON_NULL)
@@ -93,6 +86,10 @@ public class JsonRpcException extends RuntimeException {
 		return data;
 	}
 
+	public String toDescribeString() {
+		return "JsonRpcException [code=" + code + ", data=" + data + ", message=" + getMessage() + "]";
+	}
+
 	@JsonInclude(Include.ALWAYS)
 	@JsonIgnoreProperties(ignoreUnknown = true)
 	public static class ErrorData {
@@ -112,6 +109,11 @@ public class JsonRpcException extends RuntimeException {
 
 		public String getMessage() {
 			return message;
+		}
+
+		@Override
+		public String toString() {
+			return "ErrorData [typeName=" + typeName + ", message=" + message + "]";
 		}
 
 	}
