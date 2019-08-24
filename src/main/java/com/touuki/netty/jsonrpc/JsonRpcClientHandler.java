@@ -1,8 +1,11 @@
 package com.touuki.netty.jsonrpc;
 
+import java.io.IOException;
+import java.lang.reflect.Type;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -12,7 +15,9 @@ import java.util.concurrent.atomic.AtomicLong;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.databind.JavaType;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import io.netty.channel.ChannelHandler.Sharable;
@@ -40,7 +45,7 @@ public class JsonRpcClientHandler extends SimpleChannelInboundHandler<JsonRpcRes
 	public JsonRpcClientHandler(ObjectMapper mapper) {
 		this(mapper, Executors.newScheduledThreadPool(1));
 	}
-	
+
 	public JsonRpcClientHandler(ObjectMapper mapper, ScheduledExecutorService executor) {
 		this.mapper = mapper;
 		this.executor = executor;
@@ -69,13 +74,13 @@ public class JsonRpcClientHandler extends SimpleChannelInboundHandler<JsonRpcRes
 				log.warn("Null id's response received: channel:{}; remoteAddress:{}; response:{}",
 						ctx.channel().id().asLongText(), ctx.channel().remoteAddress(), msg);
 			} else {
-				Request webSocketRequest = ctx.channel().attr(REQUEST_FOR_ID).get().remove(msg.getId());
-				if (webSocketRequest != null) {
+				Request request = ctx.channel().attr(REQUEST_FOR_ID).get().remove(msg.getId());
+				if (request != null) {
 					try {
-						Object result = mapper.treeToValue(msg.getResult(), webSocketRequest.getResponseType());
-						webSocketRequest.getOnReply().complete(result);
-					} catch (JsonProcessingException e) {
-						webSocketRequest.getOnReply().completeExceptionally(e);
+						Object result = constructResponseObject(request.getResponseType(), msg.getResult());
+						request.getOnReply().complete(result);
+					} catch (IOException e) {
+						request.getOnReply().completeExceptionally(e);
 					}
 				}
 			}
@@ -94,12 +99,18 @@ public class JsonRpcClientHandler extends SimpleChannelInboundHandler<JsonRpcRes
 		ctx.channel().attr(REQUEST_NEXT_ID).set(null);
 	}
 
-	public <T> CompletableFuture<T> sendRequest(Channel channel, String method, Object params, Class<T> responseType) {
-		CompletableFuture<T> result = new CompletableFuture<>();
+	public <T> CompletableFuture<T> sendRequest(Channel channel, String method, Object params, Class<T> responseType)
+			throws InterruptedException, ExecutionException {
+		return sendRequest(channel, method, params, (Type) responseType);
+	}
+
+	public CompletableFuture sendRequest(Channel channel, String method, Object params, Type responseType)
+			throws InterruptedException, ExecutionException {
+		CompletableFuture result = new CompletableFuture<>();
 		// int requestId = ThreadLocalRandom.current().nextInt();
 		long requestId = channel.attr(REQUEST_NEXT_ID).get().getAndIncrement();
 
-		channel.writeAndFlush(new JsonRpcRequest(JSONRPC_VERSION, requestId, method, mapper.valueToTree(params)));
+		channel.writeAndFlush(new JsonRpcRequest(JSONRPC_VERSION, requestId, method, mapper.valueToTree(params))).get();
 		channel.attr(REQUEST_FOR_ID).get().put(requestId, new Request(result, responseType));
 		executor.schedule(() -> {
 			Map<Long, Request> map = channel.attr(REQUEST_FOR_ID).get(); // TODO 测试close以后是否会清除attr
@@ -111,12 +122,18 @@ public class JsonRpcClientHandler extends SimpleChannelInboundHandler<JsonRpcRes
 		return result;
 	}
 
-	public ChannelFuture sendNotify(Channel channel, String method, Object params) {
+	public ChannelFuture sendNotification(Channel channel, String method, Object params) {
 		return channel.writeAndFlush(new JsonRpcRequest(JSONRPC_VERSION, null, method, mapper.valueToTree(params)));
 	}
 
-	public ChannelGroupFuture sendNotify(ChannelGroup channelGroup, String method, Object params) {
-		return channelGroup.writeAndFlush(new JsonRpcRequest(JSONRPC_VERSION, null, method, mapper.valueToTree(params)));
+	public ChannelGroupFuture sendNotification(ChannelGroup channelGroup, String method, Object params) {
+		return channelGroup
+				.writeAndFlush(new JsonRpcRequest(JSONRPC_VERSION, null, method, mapper.valueToTree(params)));
 	}
 
+	private Object constructResponseObject(Type returnType, JsonNode jsonNode) throws IOException {
+		JsonParser returnJsonParser = mapper.treeAsTokens(jsonNode);
+		JavaType returnJavaType = mapper.getTypeFactory().constructType(returnType);
+		return mapper.readValue(returnJsonParser, returnJavaType);
+	}
 }

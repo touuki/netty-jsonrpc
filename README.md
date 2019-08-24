@@ -1,2 +1,2 @@
-# netty-websocket-jsonrpc
-A jsonrpc protocol handler on websocket using netty
+# netty-jsonrpc
+A jsonrpc protocol duplex handler on netty, websocket compatible

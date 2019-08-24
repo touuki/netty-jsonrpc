@@ -14,7 +14,6 @@ import com.touuki.netty.jsonrpc.JsonRpcException;
 import com.touuki.netty.jsonrpc.JsonRpcObject;
 import com.touuki.netty.jsonrpc.JsonRpcRequest;
 import com.touuki.netty.jsonrpc.JsonRpcResponse;
-import com.touuki.netty.jsonrpc.TextFrameToJsonRpcDecoder;
 
 import io.netty.channel.ChannelHandler.Sharable;
 import io.netty.channel.ChannelFuture;

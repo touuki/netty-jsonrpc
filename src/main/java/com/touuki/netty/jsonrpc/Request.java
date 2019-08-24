@@ -1,21 +1,22 @@
 package com.touuki.netty.jsonrpc;
 
+import java.lang.reflect.Type;
 import java.util.concurrent.CompletableFuture;
 
-class Request<T> {
-    private CompletableFuture<T> onReply;
-    private Class<T> responseType;
+class Request {
+    private CompletableFuture onReply;
+    private Type responseType;
 
-    public Request(CompletableFuture<T> onReply, Class<T> responseType) {
+    public Request(CompletableFuture onReply, Type responseType) {
         this.onReply = onReply;
         this.responseType = responseType;
     }
 
-    public CompletableFuture<T> getOnReply() {
+    public CompletableFuture getOnReply() {
         return onReply;
     }
 
-    public Class<T> getResponseType() {
+    public Type getResponseType() {
         return responseType;
     }
 }
