@@ -53,9 +53,18 @@ public class JsonRpcClientHandler extends SimpleChannelInboundHandler<JsonRpcRes
 
 	@Override
 	protected void channelRead0(ChannelHandlerContext ctx, JsonRpcResponse msg) {
+		Long id = null;
+		if (msg.getId() != null) {
+			try {				
+				id = Long.valueOf(msg.getId().toString());
+			} catch (NumberFormatException e) {
+				log.warn("Invalid id's response received: channel:{}; remoteAddress:{}; response:{}",
+						ctx.channel().id().asLongText(), ctx.channel().remoteAddress(), msg);
+			}
+		}
 		if (msg.getError() == null) {
 			// it's a response error
-			if (msg.getId() == null) {
+			if (id == null) {
 				// If there was an error in detecting the id in the Request object (e.g. Parse
 				// error/Invalid Request), it MUST be Null.
 				log.warn("Null id's error response received: channel:{}; remoteAddress:{}; error:{}",
@@ -63,18 +72,18 @@ public class JsonRpcClientHandler extends SimpleChannelInboundHandler<JsonRpcRes
 						msg.getError().toDescribeString());
 				ctx.close();
 			} else {
-				Request webSocketRequest = ctx.channel().attr(REQUEST_FOR_ID).get().remove(msg.getId());
+				Request webSocketRequest = ctx.channel().attr(REQUEST_FOR_ID).get().remove(id);
 				if (webSocketRequest != null) {
 					webSocketRequest.getOnReply().completeExceptionally(msg.getError());
 				}
 			}
 		} else {
 			// it's a response
-			if (msg.getId() == null) {
+			if (id == null) {
 				log.warn("Null id's response received: channel:{}; remoteAddress:{}; response:{}",
 						ctx.channel().id().asLongText(), ctx.channel().remoteAddress(), msg);
 			} else {
-				Request request = ctx.channel().attr(REQUEST_FOR_ID).get().remove(msg.getId());
+				Request request = ctx.channel().attr(REQUEST_FOR_ID).get().remove(id);
 				if (request != null) {
 					try {
 						Object result = constructResponseObject(request.getResponseType(), msg.getResult());

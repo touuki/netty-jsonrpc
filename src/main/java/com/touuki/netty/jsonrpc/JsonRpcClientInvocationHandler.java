@@ -1,5 +1,6 @@
 package com.touuki.netty.jsonrpc;
 
+import java.lang.reflect.Array;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
@@ -142,7 +143,8 @@ public class JsonRpcClientInvocationHandler implements InvocationHandler {
 			Parameter[] parameters = method.getParameters();
 			assert arguments.length == parameters.length;
 			
-			for (int i = 0; i < parameters.length; i++) {
+			int i = 0;
+			for (; i < parameters.length - 1; i++) {
 				if (Channel.class.isAssignableFrom(parameters[i].getType())) {
 					channel = (Channel) arguments[i];
 					continue;
@@ -157,6 +159,34 @@ public class JsonRpcClientInvocationHandler implements InvocationHandler {
 					argumentForName.put(parameters[i].getName(), arguments[i]);
 				}
 			}
+			
+			if (i < parameters.length) {
+				String lastArgName;
+				JsonRpcParam jsonRpcParam = parameters[i].getAnnotation(JsonRpcParam.class);
+				if (jsonRpcParam != null) {
+					lastArgName = jsonRpcParam.value();
+				} else {
+					lastArgName = parameters[i].getName();
+				}
+				if (method.isVarArgs() && !paramsPassByObject) {
+					Class<?> componentType = parameters[i].getType().getComponentType();
+					if (componentType.isPrimitive()) {
+						Object array = arguments[i];
+						int length = Array.getLength(array);
+						for (int j = 0; j < length; j++) {
+							argumentForName.put(lastArgName + "[" + j + "]", Array.get(array, j));
+						}
+					} else {
+						Object[] array = (Object[]) arguments[i];
+						for (int j = 0; j < array.length; j++) {
+							argumentForName.put(lastArgName + "[" + j + "]", array[j]);
+						}
+					}
+				} else {
+					argumentForName.put(lastArgName, arguments[i]);
+				}
+			}
+			
 			
 			if (paramsPassByObject) {
 				this.arguments = argumentForName;
