@@ -1,7 +1,6 @@
 package com.touuki.netty.jsonrpc.websocket;
 
 import java.io.IOException;
-import java.io.Serializable;
 import java.util.List;
 
 import org.slf4j.Logger;
@@ -35,7 +34,7 @@ public class JsonRpcTextFrameCodec extends MessageToMessageCodec<TextWebSocketFr
 	protected void encode(ChannelHandlerContext ctx, JsonRpcObject msg, List<Object> out)
 			throws JsonProcessingException {
 		try {
-			out.add(new TextWebSocketFrame(objectMapper.writeValueAsString(msg)));
+			out.add(encode(msg));
 		} catch (JsonProcessingException e) {
 			if (msg instanceof JsonRpcResponse) {
 				returnError(ctx, ((JsonRpcResponse) msg).getId(), JsonRpcException.INTERNAL_ERROR);
@@ -47,10 +46,14 @@ public class JsonRpcTextFrameCodec extends MessageToMessageCodec<TextWebSocketFr
 			throw e;
 		}
 	}
+	
+	private TextWebSocketFrame encode(JsonRpcObject msg) throws JsonProcessingException {
+		return new TextWebSocketFrame(objectMapper.writeValueAsString(msg));
+	}
 
 	@Override
-	protected void decode(ChannelHandlerContext ctx, TextWebSocketFrame msg, List<Object> out) {
-		Serializable id = null;
+	protected void decode(ChannelHandlerContext ctx, TextWebSocketFrame msg, List<Object> out) throws JsonProcessingException {
+		Object id = null;
 		try {
 			JsonNode node;
 			try {
@@ -95,7 +98,7 @@ public class JsonRpcTextFrameCodec extends MessageToMessageCodec<TextWebSocketFr
 		}
 	}
 
-	private Serializable parseId(JsonNode node) {
+	private Object parseId(JsonNode node) {
 		if (node == null || node.isNull()) {
 			return null;
 		}
@@ -120,8 +123,8 @@ public class JsonRpcTextFrameCodec extends MessageToMessageCodec<TextWebSocketFr
 		throw JsonRpcException.INVALID_REQUEST;
 	}
 
-	private void returnError(ChannelHandlerContext ctx, Serializable id, JsonRpcException jsonRpcException) {
+	private void returnError(ChannelHandlerContext ctx, Object id, JsonRpcException jsonRpcException) throws JsonProcessingException {
 		JsonRpcResponse jsonRpcResponse = new JsonRpcResponse(DEFAULT_JSONRPC_VERSION, id, null, jsonRpcException);
-		ctx.writeAndFlush(jsonRpcResponse).addListener((future) -> ctx.close());
+		ctx.writeAndFlush(encode(jsonRpcResponse)).addListener((future) -> ctx.close());
 	}
 }

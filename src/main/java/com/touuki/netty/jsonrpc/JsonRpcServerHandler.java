@@ -1,7 +1,6 @@
 package com.touuki.netty.jsonrpc;
 
 import java.io.IOException;
-import java.io.Serializable;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
@@ -64,10 +63,12 @@ public class JsonRpcServerHandler extends SimpleChannelInboundHandler<JsonRpcReq
 		Set<Method> methods = findMatchingMethodsByName(getHandlerInterfaces(serviceName), partialMethodName);
 		if (methods.isEmpty()) {
 			returnError(ctx, jsonrpc, msg.getId(), JsonRpcException.METHOD_NOT_FOUND);
+			return;
 		}
 		MethodInfo methodInfo = findMatchingMethodByParams(methods, msg.getParams());
 		if (methodInfo == null) {
 			returnError(ctx, jsonrpc, msg.getId(), JsonRpcException.METHOD_PARAMS_INVALID);
+			return;
 		}
 
 		try {
@@ -77,6 +78,9 @@ public class JsonRpcServerHandler extends SimpleChannelInboundHandler<JsonRpcReq
 					ctx.channel());
 
 			if (msg.getId() != null) {
+				if (result == null) {
+					result = NullNode.getInstance();
+				}
 				ctx.writeAndFlush(new JsonRpcResponse(jsonrpc, msg.getId(), result, null));
 			}
 		} catch (Throwable e) {
@@ -106,14 +110,13 @@ public class JsonRpcServerHandler extends SimpleChannelInboundHandler<JsonRpcReq
 		return methods;
 	}
 
-	private void returnError(ChannelHandlerContext ctx, String jsonrpc, Serializable id,
-			JsonRpcException jsonRpcException) {
+	private void returnError(ChannelHandlerContext ctx, String jsonrpc, Object id, JsonRpcException jsonRpcException) {
 		if (id != null) {
 			ctx.writeAndFlush(new JsonRpcResponse(jsonrpc, id, null, jsonRpcException));
 		}
 	}
 
-	private void handleError(ChannelHandlerContext ctx, Serializable id, String jsonrpc, Throwable e) {
+	private void handleError(ChannelHandlerContext ctx, Object id, String jsonrpc, Throwable e) {
 		Throwable unwrappedException = getException(e);
 
 		if (shouldLogInvocationErrors) {
@@ -229,7 +232,7 @@ public class JsonRpcServerHandler extends SimpleChannelInboundHandler<JsonRpcReq
 
 		log.debug("Invoked method: {}, result {}", method.getName(), result);
 
-		return hasReturnValue(method) ? mapper.valueToTree(result) : NullNode.getInstance();
+		return hasReturnValue(method) ? mapper.valueToTree(result) : null;
 	}
 
 	private Object convertJsonToParameter(JsonNode jsonNode, Type parameterType) throws IOException {
@@ -251,7 +254,7 @@ public class JsonRpcServerHandler extends SimpleChannelInboundHandler<JsonRpcReq
 			// (ObjectNode) paramsNode);
 			return null;
 		} else {
-			throw new IllegalArgumentException("Unknown params node type: " + paramsNode.toString());
+			return null;
 		}
 	}
 
@@ -296,6 +299,16 @@ public class JsonRpcServerHandler extends SimpleChannelInboundHandler<JsonRpcReq
 		outter: for (Method method : methods) {
 			int channelParamsIndex = -1;
 			List<Class<?>> parameterTypes = Arrays.asList(method.getParameterTypes());
+			if (parameterTypes.isEmpty()) {
+				if (paramNodes.size() == 0) {					
+					MethodInfo methodInfo = new MethodInfo();
+					methodInfo.channelParamsIndex = channelParamsIndex;
+					methodInfo.method = method;
+					nonVarArgsMethodInfos.add(methodInfo);
+				}
+				continue;
+			}
+			
 			int i = 0, j = 0;
 			for (; i < parameterTypes.size() - 1 && j < paramNodes.size(); i++) {
 				if (Channel.class.isAssignableFrom(parameterTypes.get(i))) {
@@ -322,8 +335,20 @@ public class JsonRpcServerHandler extends SimpleChannelInboundHandler<JsonRpcReq
 				methodInfo.method = method;
 				varArgsMethodInfos.add(methodInfo);
 			} else {
-				if (i < parameterTypes.size()) {
-					continue; // less arguments
+				if (i < parameterTypes.size() - 1) {
+					continue;
+				} else if (i == parameterTypes.size() - 1) {
+					if (j == paramNodes.size() - 1) {
+						if (!isMatchingType(paramNodes.get(j), parameterTypes.get(i))) {
+							continue;
+						}
+					} else {
+						continue;
+					}
+				} else {
+					if (j < paramNodes.size()) {
+						continue;
+					}
 				}
 				MethodInfo methodInfo = new MethodInfo();
 				methodInfo.channelParamsIndex = channelParamsIndex;
@@ -336,25 +361,19 @@ public class JsonRpcServerHandler extends SimpleChannelInboundHandler<JsonRpcReq
 		if (nonVarArgsMethodInfos.size() == 0) {
 			if (varArgsMethodInfos.size() == 0) {
 				return null;
-			} else if (varArgsMethodInfos.size() == 1) {
-				bestMethodInfo = varArgsMethodInfos.iterator().next();
 			} else {
-				log.warn("The method {} is ambiguous for the params: {}",
-						varArgsMethodInfos.iterator().next().method.getName(), paramNodes.toString());
-				return null;
+				bestMethodInfo = varArgsMethodInfos.iterator().next();
 			}
-		} else if (nonVarArgsMethodInfos.size() == 1) {
-			bestMethodInfo = nonVarArgsMethodInfos.iterator().next();
 		} else {
-			log.warn("The method {} is ambiguous for the params: {}",
-					nonVarArgsMethodInfos.iterator().next().method.getName(), paramNodes.toString());
-			return null;
+			bestMethodInfo = nonVarArgsMethodInfos.iterator().next();
 		}
 		List<JsonNode> arguments = new ArrayList<>();
 		for (int i = 0; i < paramNodes.size(); i++) {
 			arguments.add(paramNodes.get(i));
 		}
-		arguments.add(bestMethodInfo.channelParamsIndex, NullNode.getInstance());
+		if (bestMethodInfo.channelParamsIndex >= 0) {			
+			arguments.add(bestMethodInfo.channelParamsIndex, NullNode.getInstance());
+		}
 		bestMethodInfo.arguments = arguments;
 		return bestMethodInfo;
 	}
