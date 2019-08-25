@@ -93,7 +93,7 @@ public class JsonRpcClientInvocationHandler implements InvocationHandler {
 	private RequestData createRequestData(Method method, Object[] args) {
 
 		RequestData requestData = new RequestData();
-		JsonRpcMethod jsonRpcMethod = ReflectionUtil.getAnnotation(method, JsonRpcMethod.class);
+		JsonRpcMethod jsonRpcMethod = method.getAnnotation(JsonRpcMethod.class);
 		JsonRpcRequestMode requestMode = JsonRpcRequestMode.AUTO;
 		boolean paramsPassByObject = false;
 		if (jsonRpcMethod == null) {
@@ -136,13 +136,13 @@ public class JsonRpcClientInvocationHandler implements InvocationHandler {
 				break;
 			}
 		}
-		
+
 		private void handleParams(Method method, Object[] arguments, boolean paramsPassByObject) {
 			Map<String, Object> argumentForName = new LinkedHashMap<>();
 
 			Parameter[] parameters = method.getParameters();
 			assert arguments.length == parameters.length;
-			
+
 			int i = 0;
 			for (; i < parameters.length - 1; i++) {
 				if (Channel.class.isAssignableFrom(parameters[i].getType())) {
@@ -159,7 +159,7 @@ public class JsonRpcClientInvocationHandler implements InvocationHandler {
 					argumentForName.put(parameters[i].getName(), arguments[i]);
 				}
 			}
-			
+
 			if (i < parameters.length) {
 				String lastArgName;
 				JsonRpcParam jsonRpcParam = parameters[i].getAnnotation(JsonRpcParam.class);
@@ -186,8 +186,7 @@ public class JsonRpcClientInvocationHandler implements InvocationHandler {
 					argumentForName.put(lastArgName, arguments[i]);
 				}
 			}
-			
-			
+
 			if (paramsPassByObject) {
 				this.arguments = argumentForName;
 			} else {

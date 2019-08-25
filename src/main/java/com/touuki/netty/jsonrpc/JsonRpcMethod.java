@@ -17,15 +17,16 @@ public @interface JsonRpcMethod {
 	 */
 	String value();
 
-	JsonRpcRequestMode requestMode() default JsonRpcRequestMode.AUTO;
-
-	long timeoutMilliseconds() default -1;
-	
-	boolean paramsPassByObject() default false;
 	/**
 	 * If {@code true}, the Java method name will not be used to resolve rpc calls.
 	 * 
 	 * @return whether the {@link #value()} is required to match the method.
 	 */
 	boolean required() default false;
+
+	JsonRpcRequestMode requestMode() default JsonRpcRequestMode.AUTO;
+
+	long timeoutMilliseconds() default -1;
+	
+	boolean paramsPassByObject() default false;
 }
