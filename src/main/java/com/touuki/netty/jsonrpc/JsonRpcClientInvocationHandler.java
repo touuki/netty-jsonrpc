@@ -26,7 +26,7 @@ public class JsonRpcClientInvocationHandler implements InvocationHandler {
 	}
 
 	@Override
-	public Object invoke(Object proxy, Method method, Object[] args) {
+	public Object invoke(Object proxy, Method method, Object[] args) throws Throwable{
 		if (isDeclaringClassAnObject(method))
 			return proxyObjectMethods(method, proxy, args);
 

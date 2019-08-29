@@ -62,7 +62,7 @@ public class JsonRpcClientHandler extends SimpleChannelInboundHandler<JsonRpcRes
 						ctx.channel().id().asLongText(), ctx.channel().remoteAddress(), msg);
 			}
 		}
-		if (msg.getError() == null) {
+		if (msg.getError() != null) {
 			// it's a response error
 			if (id == null) {
 				// If there was an error in detecting the id in the Request object (e.g. Parse
@@ -100,27 +100,33 @@ public class JsonRpcClientHandler extends SimpleChannelInboundHandler<JsonRpcRes
 	public void channelActive(ChannelHandlerContext ctx) throws Exception {
 		ctx.channel().attr(REQUEST_FOR_ID).setIfAbsent(new ConcurrentHashMap<>());
 		ctx.channel().attr(REQUEST_NEXT_ID).setIfAbsent(new AtomicLong(0));
+		ctx.fireChannelActive();
 	}
 
 	@Override
 	public void channelInactive(ChannelHandlerContext ctx) throws Exception {
 		ctx.channel().attr(REQUEST_FOR_ID).set(null);
 		ctx.channel().attr(REQUEST_NEXT_ID).set(null);
+		ctx.fireChannelInactive();
 	}
 
 	public <T> CompletableFuture<T> sendRequest(Channel channel, String method, Object params, Class<T> responseType)
-			throws InterruptedException, ExecutionException {
+			throws Exception {
 		return sendRequest(channel, method, params, (Type) responseType);
 	}
 
-	public CompletableFuture sendRequest(Channel channel, String method, Object params, Type responseType)
-			throws InterruptedException, ExecutionException {
+	public CompletableFuture sendRequest(Channel channel, String method, Object params, Type responseType) throws Exception{
 		CompletableFuture result = new CompletableFuture<>();
 		// int requestId = ThreadLocalRandom.current().nextInt();
 		long requestId = channel.attr(REQUEST_NEXT_ID).get().getAndIncrement();
 
-		channel.writeAndFlush(new JsonRpcRequest(JSONRPC_VERSION, requestId, method, mapper.valueToTree(params))).get();
 		channel.attr(REQUEST_FOR_ID).get().put(requestId, new Request(result, responseType));
+		try {
+			channel.writeAndFlush(new JsonRpcRequest(JSONRPC_VERSION, requestId, method, mapper.valueToTree(params))).get();
+		} catch (Exception e) {
+			channel.attr(REQUEST_FOR_ID).get().remove(requestId);
+			throw e;
+		}
 		executor.schedule(() -> {
 			Map<Long, Request> map = channel.attr(REQUEST_FOR_ID).get(); // TODO 测试close以后是否会清除attr
 			if (map != null) {

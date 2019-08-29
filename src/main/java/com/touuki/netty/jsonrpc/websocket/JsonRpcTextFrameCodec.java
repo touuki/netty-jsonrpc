@@ -53,6 +53,7 @@ public class JsonRpcTextFrameCodec extends MessageToMessageCodec<TextWebSocketFr
 
 	@Override
 	protected void decode(ChannelHandlerContext ctx, TextWebSocketFrame msg, List<Object> out) throws JsonProcessingException {
+		log.debug("Decoding text websocket frame: {} {}", ctx.channel().id().asLongText(), msg.text());
 		Object id = null;
 		try {
 			JsonNode node;
