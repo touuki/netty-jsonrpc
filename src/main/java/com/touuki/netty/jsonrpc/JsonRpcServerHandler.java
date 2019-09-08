@@ -17,17 +17,22 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JavaType;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.NullNode;
+import com.fasterxml.jackson.databind.node.TextNode;
 
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandler.Sharable;
+import io.netty.handler.codec.CorruptedFrameException;
+import io.netty.handler.codec.DecoderException;
+import io.netty.handler.codec.TooLongFrameException;
 
 @Sharable
 public class JsonRpcServerHandler extends SimpleChannelInboundHandler<JsonRpcRequest> {
@@ -55,6 +60,12 @@ public class JsonRpcServerHandler extends SimpleChannelInboundHandler<JsonRpcReq
 			jsonrpc = msg.getJsonrpc();
 		} else {
 			jsonrpc = DEFAULT_JSONRPC_VERSION;
+		}
+		
+		//ping server
+		if ("rpc.ping".equals(msg.getMethod()) && msg.getId() != null) {
+			ctx.writeAndFlush(new JsonRpcResponse(jsonrpc, msg.getId(), TextNode.valueOf("rpc.pong"), null));
+			return;
 		}
 
 		final String partialMethodName = getMethodName(msg.getMethod());
@@ -88,6 +99,17 @@ public class JsonRpcServerHandler extends SimpleChannelInboundHandler<JsonRpcReq
 		}
 
 	}
+	
+	@Override
+	public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws JsonProcessingException {
+		if (cause instanceof DecoderException) {
+			returnError(ctx,  DEFAULT_JSONRPC_VERSION, null, JsonRpcException.PARSE_ERROR);
+		} else if (cause instanceof JsonRpcException){
+			returnError(ctx, DEFAULT_JSONRPC_VERSION, null, (JsonRpcException) cause);
+		} else {			
+			ctx.fireExceptionCaught(cause);
+		}
+	}
 
 	private Set<Method> findMatchingMethodsByName(Class<?>[] classes, String name) {
 		Set<Method> methods = new HashSet<>();
@@ -111,7 +133,9 @@ public class JsonRpcServerHandler extends SimpleChannelInboundHandler<JsonRpcReq
 	}
 
 	private void returnError(ChannelHandlerContext ctx, String jsonrpc, Object id, JsonRpcException jsonRpcException) {
-		if (id != null) {
+		if (jsonRpcException == JsonRpcException.PARSE_ERROR || jsonRpcException == JsonRpcException.INVALID_REQUEST) {
+			ctx.writeAndFlush(new JsonRpcResponse(jsonrpc, id, null, jsonRpcException)).addListener((future) -> ctx.channel().close());
+		} else if (id != null) {
 			ctx.writeAndFlush(new JsonRpcResponse(jsonrpc, id, null, jsonRpcException));
 		}
 	}

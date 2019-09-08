@@ -5,7 +5,6 @@ import java.lang.reflect.Type;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -16,6 +15,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JavaType;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -23,6 +23,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.netty.channel.ChannelHandler.Sharable;
 import io.netty.channel.group.ChannelGroup;
 import io.netty.channel.group.ChannelGroupFuture;
+import io.netty.handler.codec.DecoderException;
+import io.netty.handler.timeout.IdleStateEvent;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelHandlerContext;
@@ -37,17 +39,24 @@ public class JsonRpcClientHandler extends SimpleChannelInboundHandler<JsonRpcRes
 	private static final AttributeKey<Map<Long, Request>> REQUEST_FOR_ID = AttributeKey.valueOf("REQUEST_FOR_ID");
 	private static final AttributeKey<AtomicLong> REQUEST_NEXT_ID = AttributeKey.valueOf("REQUEST_NEXT_ID");
 	private final ObjectMapper mapper;
+	private final boolean autoPing;
 
 	private int maxTimeoutSecond = 60;
 
 	private final ScheduledExecutorService executor;
 
 	public JsonRpcClientHandler(ObjectMapper mapper) {
-		this(mapper, Executors.newScheduledThreadPool(1));
+		this(mapper, false);
+	}
+	
+	public JsonRpcClientHandler(ObjectMapper mapper, boolean autoPing) {
+		this(mapper, autoPing, Executors.newScheduledThreadPool(1));
 	}
 
-	public JsonRpcClientHandler(ObjectMapper mapper, ScheduledExecutorService executor) {
+	public JsonRpcClientHandler(ObjectMapper mapper, boolean autoPing, ScheduledExecutorService executor) {
+		super();
 		this.mapper = mapper;
+		this.autoPing = autoPing;
 		this.executor = executor;
 	}
 
@@ -108,6 +117,27 @@ public class JsonRpcClientHandler extends SimpleChannelInboundHandler<JsonRpcRes
 		ctx.channel().attr(REQUEST_FOR_ID).set(null);
 		ctx.channel().attr(REQUEST_NEXT_ID).set(null);
 		ctx.fireChannelInactive();
+	}
+	
+	@Override
+	public void userEventTriggered(ChannelHandlerContext ctx, Object evt) throws Exception {
+		if (autoPing && evt instanceof IdleStateEvent) {
+			sendRequest(ctx.channel(), "rpc.ping", null, String.class).whenComplete((result, cause) -> {
+				if(cause != null) {
+					ctx.channel().close();
+				} else if (!"rpc.pong".equals(result)) {
+					log.warn("Invalid pong response received: {}", result);
+				}
+			});
+		} else {
+			ctx.fireUserEventTriggered(evt);
+		}
+	}
+	
+	@Override
+	public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws JsonProcessingException {			
+		log.error("Uncaught exception:", cause);
+		ctx.channel().close();
 	}
 
 	public <T> CompletableFuture<T> sendRequest(Channel channel, String method, Object params, Class<T> responseType)
