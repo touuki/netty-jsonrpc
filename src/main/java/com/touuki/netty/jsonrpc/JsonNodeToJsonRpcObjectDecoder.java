@@ -47,13 +47,13 @@ class JsonNodeToJsonRpcObjectDecoder extends MessageToMessageDecoder<JsonNode> {
 	
 	@Override
 	protected void decode(ChannelHandlerContext ctx, JsonNode msg, List<Object> out) {
-		if (msg.has("method")) {
+		if (jsonRpcServerHandler != null && msg.has("method")) {
 			try {
 				out.add(JsonUtils.MAPPER.treeToValue(msg, JsonRpcRequest.class));
 			} catch (JsonProcessingException e) {
-				throw JsonRpcException.INVALID_REQUEST;
+				throw new JsonRpcException("Invalid Request", JsonRpcException.INVALID_REQUEST);
 			}
-		} else if (msg.has("error") || msg.has("result")) {
+		} else if (jsonRpcClientHandler != null && ( msg.has("error") || msg.has("result") )) {
 			try {
 				out.add(JsonUtils.MAPPER.treeToValue(msg, JsonRpcResponse.class));
 			} catch (JsonProcessingException e) {
@@ -61,7 +61,7 @@ class JsonNodeToJsonRpcObjectDecoder extends MessageToMessageDecoder<JsonNode> {
 						ctx.channel().id().asLongText(), ctx.channel().remoteAddress(), e.toString());
 			}
 		} else {
-			throw JsonRpcException.INVALID_REQUEST;
+			throw new JsonRpcException("Invalid Request", JsonRpcException.INVALID_REQUEST);
 		}
 	}
 }

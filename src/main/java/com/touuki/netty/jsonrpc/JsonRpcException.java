@@ -11,13 +11,11 @@ import com.fasterxml.jackson.annotation.JsonInclude.Include;
 public class JsonRpcException extends RuntimeException {
 	private static final long serialVersionUID = -7965782582127898499L;
 
-	public static final JsonRpcException PARSE_ERROR = new JsonRpcException("Parse error", -32700);
-	public static final JsonRpcException INVALID_REQUEST = new JsonRpcException("Invalid Request", -32600);
-	public static final JsonRpcException METHOD_NOT_FOUND = new JsonRpcException("Method not found", -32601);
-	public static final JsonRpcException METHOD_PARAMS_INVALID = new JsonRpcException("Invalid params", -32602);
-	public static final JsonRpcException INTERNAL_ERROR = new JsonRpcException("Internal error", -32603);
-
-	private static final StackTraceElement[] EMPTY_STACK = new StackTraceElement[0];
+	public static final int PARSE_ERROR = -32700;
+	public static final int INVALID_REQUEST = -32600;
+	public static final int METHOD_NOT_FOUND = -32601;
+	public static final int METHOD_PARAMS_INVALID = -32602;
+	public static final int INTERNAL_ERROR = -32603;
 
 	public static final int CUSTOM_SERVER_ERROR_UPPER = -32000;
 	public static final int CUSTOM_SERVER_ERROR_LOWER = -32099;
@@ -25,13 +23,11 @@ public class JsonRpcException extends RuntimeException {
 	private final int code;
 	@JsonInclude(Include.NON_NULL)
 	private final ErrorData data;
-	private final boolean showStackTrace;
 
-	private JsonRpcException(String message, int code) {
+	JsonRpcException(String message, int code) {
 		super(message);
 		this.code = code;
 		this.data = null;
-		this.showStackTrace = false;
 	}
 
 	@JsonCreator
@@ -40,7 +36,6 @@ public class JsonRpcException extends RuntimeException {
 		super(message);
 		this.code = code;
 		this.data = data;
-		this.showStackTrace = false;
 	}
 
 	public JsonRpcException(int code, String message) {
@@ -53,7 +48,6 @@ public class JsonRpcException extends RuntimeException {
 		}
 		this.code = code;
 		this.data = null;
-		this.showStackTrace = true;
 	}
 
 	public JsonRpcException(int code, String message, Throwable cause) {
@@ -66,7 +60,6 @@ public class JsonRpcException extends RuntimeException {
 		}
 		this.code = code;
 		this.data = initData(cause);
-		this.showStackTrace = true;
 	}
 
 	public JsonRpcException(int code, Throwable cause) {
@@ -79,20 +72,6 @@ public class JsonRpcException extends RuntimeException {
 		}
 		this.code = code;
 		this.data = initData(cause);
-		this.showStackTrace = true;
-	}
-
-	/**
-	 * To avoid the Error in
-	 * {@link io.netty.channel.AbstractChannelHandlerContext#inExceptionCaught(Throwable cause)}
-	 */
-	@Override
-	public StackTraceElement[] getStackTrace() {
-		if (showStackTrace) {
-			return super.getStackTrace();
-		} else {
-			return EMPTY_STACK;
-		}
 	}
 
 	public ErrorData initData(Throwable cause) {

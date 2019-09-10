@@ -73,12 +73,12 @@ public class JsonRpcServerHandler extends SimpleChannelInboundHandler<JsonRpcReq
 
 		Set<Method> methods = findMatchingMethodsByName(getHandlerInterfaces(serviceName), partialMethodName);
 		if (methods.isEmpty()) {
-			returnError(ctx, jsonrpc, msg.getId(), JsonRpcException.METHOD_NOT_FOUND);
+			returnError(ctx, jsonrpc, msg.getId(), new JsonRpcException("Method not found", JsonRpcException.METHOD_NOT_FOUND));
 			return;
 		}
 		MethodInfo methodInfo = findMatchingMethodByParams(methods, msg.getParams());
 		if (methodInfo == null) {
-			returnError(ctx, jsonrpc, msg.getId(), JsonRpcException.METHOD_PARAMS_INVALID);
+			returnError(ctx, jsonrpc, msg.getId(), new JsonRpcException("Invalid params", JsonRpcException.METHOD_PARAMS_INVALID));
 			return;
 		}
 
@@ -110,7 +110,7 @@ public class JsonRpcServerHandler extends SimpleChannelInboundHandler<JsonRpcReq
 			returnError(ctx, DEFAULT_JSONRPC_VERSION, null, (JsonRpcException) cause);
 		} else if (cause instanceof JsonProcessingException || cause instanceof CorruptedFrameException
 				|| cause instanceof TooLongFrameException) {
-			returnError(ctx, DEFAULT_JSONRPC_VERSION, null, JsonRpcException.PARSE_ERROR);
+			returnError(ctx, DEFAULT_JSONRPC_VERSION, null, new JsonRpcException("Parse error", JsonRpcException.PARSE_ERROR));
 		} else {
 			ctx.fireExceptionCaught(cause);
 		}
@@ -138,7 +138,7 @@ public class JsonRpcServerHandler extends SimpleChannelInboundHandler<JsonRpcReq
 	}
 
 	private void returnError(ChannelHandlerContext ctx, String jsonrpc, Object id, JsonRpcException jsonRpcException) {
-		if (jsonRpcException == JsonRpcException.PARSE_ERROR || jsonRpcException == JsonRpcException.INVALID_REQUEST) {
+		if (jsonRpcException.getCode() == JsonRpcException.PARSE_ERROR || jsonRpcException.getCode() == JsonRpcException.INVALID_REQUEST) {
 			ctx.writeAndFlush(new JsonRpcResponse(jsonrpc, id, null, jsonRpcException))
 					.addListener((future) -> ctx.channel().close());
 		} else if (id != null) {

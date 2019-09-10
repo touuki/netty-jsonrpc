@@ -1,5 +1,5 @@
 package com.touuki.netty.jsonrpc;
 
-public interface JsonRpcObject {
+interface JsonRpcObject {
 
 }
