@@ -1,5 +1,5 @@
 # netty-jsonrpc
-A jsonrpc protocol duplex handler on netty, websocket compatible
+A high performance asynchronous [JSON-RPC](https://www.jsonrpc.org) protocol Java implementation based on [Netty](https://netty.io), can  either work on a raw tcp or a websocket.
 
 # TODO
 1. reflect cache
