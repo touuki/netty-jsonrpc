@@ -7,7 +7,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.JsonNode;
 
 @JsonInclude(Include.NON_NULL)
-public class JsonRpcRequest implements JsonRpcObject{
+class JsonRpcRequest implements JsonRpcObject{
 	private final String jsonrpc;
 	private final Object id;
 	private final String method;

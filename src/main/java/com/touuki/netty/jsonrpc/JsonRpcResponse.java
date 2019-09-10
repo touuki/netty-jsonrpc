@@ -9,7 +9,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(Include.NON_NULL)
-public class JsonRpcResponse implements JsonRpcObject{
+class JsonRpcResponse implements JsonRpcObject{
 	
 	private final String jsonrpc;
 	@JsonInclude(Include.ALWAYS)

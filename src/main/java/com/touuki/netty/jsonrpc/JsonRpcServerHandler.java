@@ -61,8 +61,8 @@ public class JsonRpcServerHandler extends SimpleChannelInboundHandler<JsonRpcReq
 		} else {
 			jsonrpc = DEFAULT_JSONRPC_VERSION;
 		}
-		
-		//ping server
+
+		// ping server
 		if ("rpc.ping".equals(msg.getMethod()) && msg.getId() != null) {
 			ctx.writeAndFlush(new JsonRpcResponse(jsonrpc, msg.getId(), TextNode.valueOf("rpc.pong"), null));
 			return;
@@ -99,14 +99,19 @@ public class JsonRpcServerHandler extends SimpleChannelInboundHandler<JsonRpcReq
 		}
 
 	}
-	
+
 	@Override
 	public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws JsonProcessingException {
-		if (cause instanceof DecoderException) {
-			returnError(ctx,  DEFAULT_JSONRPC_VERSION, null, JsonRpcException.PARSE_ERROR);
-		} else if (cause instanceof JsonRpcException){
+		if (cause instanceof DecoderException && cause.getCause() != null) {
+			cause = cause.getCause();
+		}
+
+		if (cause instanceof JsonRpcException) {
 			returnError(ctx, DEFAULT_JSONRPC_VERSION, null, (JsonRpcException) cause);
-		} else {			
+		} else if (cause instanceof JsonProcessingException || cause instanceof CorruptedFrameException
+				|| cause instanceof TooLongFrameException) {
+			returnError(ctx, DEFAULT_JSONRPC_VERSION, null, JsonRpcException.PARSE_ERROR);
+		} else {
 			ctx.fireExceptionCaught(cause);
 		}
 	}
@@ -134,7 +139,8 @@ public class JsonRpcServerHandler extends SimpleChannelInboundHandler<JsonRpcReq
 
 	private void returnError(ChannelHandlerContext ctx, String jsonrpc, Object id, JsonRpcException jsonRpcException) {
 		if (jsonRpcException == JsonRpcException.PARSE_ERROR || jsonRpcException == JsonRpcException.INVALID_REQUEST) {
-			ctx.writeAndFlush(new JsonRpcResponse(jsonrpc, id, null, jsonRpcException)).addListener((future) -> ctx.channel().close());
+			ctx.writeAndFlush(new JsonRpcResponse(jsonrpc, id, null, jsonRpcException))
+					.addListener((future) -> ctx.channel().close());
 		} else if (id != null) {
 			ctx.writeAndFlush(new JsonRpcResponse(jsonrpc, id, null, jsonRpcException));
 		}
@@ -324,7 +330,7 @@ public class JsonRpcServerHandler extends SimpleChannelInboundHandler<JsonRpcReq
 			int channelParamsIndex = -1;
 			List<Class<?>> parameterTypes = Arrays.asList(method.getParameterTypes());
 			if (parameterTypes.isEmpty()) {
-				if (paramNodes.size() == 0) {					
+				if (paramNodes.size() == 0) {
 					MethodInfo methodInfo = new MethodInfo();
 					methodInfo.channelParamsIndex = channelParamsIndex;
 					methodInfo.method = method;
@@ -332,7 +338,7 @@ public class JsonRpcServerHandler extends SimpleChannelInboundHandler<JsonRpcReq
 				}
 				continue;
 			}
-			
+
 			int i = 0, j = 0;
 			for (; i < parameterTypes.size() - 1 && j < paramNodes.size(); i++) {
 				if (Channel.class.isAssignableFrom(parameterTypes.get(i))) {
@@ -395,7 +401,7 @@ public class JsonRpcServerHandler extends SimpleChannelInboundHandler<JsonRpcReq
 		for (int i = 0; i < paramNodes.size(); i++) {
 			arguments.add(paramNodes.get(i));
 		}
-		if (bestMethodInfo.channelParamsIndex >= 0) {			
+		if (bestMethodInfo.channelParamsIndex >= 0) {
 			arguments.add(bestMethodInfo.channelParamsIndex, NullNode.getInstance());
 		}
 		bestMethodInfo.arguments = arguments;

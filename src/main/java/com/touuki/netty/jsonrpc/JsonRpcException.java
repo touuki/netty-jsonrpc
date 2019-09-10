@@ -17,17 +17,21 @@ public class JsonRpcException extends RuntimeException {
 	public static final JsonRpcException METHOD_PARAMS_INVALID = new JsonRpcException("Invalid params", -32602);
 	public static final JsonRpcException INTERNAL_ERROR = new JsonRpcException("Internal error", -32603);
 
+	private static final StackTraceElement[] EMPTY_STACK = new StackTraceElement[0];
+
 	public static final int CUSTOM_SERVER_ERROR_UPPER = -32000;
 	public static final int CUSTOM_SERVER_ERROR_LOWER = -32099;
 
 	private final int code;
 	@JsonInclude(Include.NON_NULL)
 	private final ErrorData data;
+	private final boolean showStackTrace;
 
 	private JsonRpcException(String message, int code) {
 		super(message);
 		this.code = code;
 		this.data = null;
+		this.showStackTrace = false;
 	}
 
 	@JsonCreator
@@ -36,6 +40,7 @@ public class JsonRpcException extends RuntimeException {
 		super(message);
 		this.code = code;
 		this.data = data;
+		this.showStackTrace = false;
 	}
 
 	public JsonRpcException(int code, String message) {
@@ -48,6 +53,7 @@ public class JsonRpcException extends RuntimeException {
 		}
 		this.code = code;
 		this.data = null;
+		this.showStackTrace = true;
 	}
 
 	public JsonRpcException(int code, String message, Throwable cause) {
@@ -60,6 +66,7 @@ public class JsonRpcException extends RuntimeException {
 		}
 		this.code = code;
 		this.data = initData(cause);
+		this.showStackTrace = true;
 	}
 
 	public JsonRpcException(int code, Throwable cause) {
@@ -72,6 +79,20 @@ public class JsonRpcException extends RuntimeException {
 		}
 		this.code = code;
 		this.data = initData(cause);
+		this.showStackTrace = true;
+	}
+
+	/**
+	 * To avoid the Error in
+	 * {@link io.netty.channel.AbstractChannelHandlerContext#inExceptionCaught(Throwable cause)}
+	 */
+	@Override
+	public StackTraceElement[] getStackTrace() {
+		if (showStackTrace) {
+			return super.getStackTrace();
+		} else {
+			return EMPTY_STACK;
+		}
 	}
 
 	public ErrorData initData(Throwable cause) {

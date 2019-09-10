@@ -4,7 +4,7 @@ import java.lang.reflect.Proxy;
 
 import io.netty.channel.Channel;
 
-public class ProxyUtil {
+public class ProxyUtils {
 
 	@SuppressWarnings("unchecked")
 	public static <T> T createClientProxy(ClassLoader classLoader, Class<T> proxyInterface,

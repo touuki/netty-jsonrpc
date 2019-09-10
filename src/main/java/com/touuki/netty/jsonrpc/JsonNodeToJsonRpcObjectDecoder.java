@@ -16,28 +16,46 @@ import com.touuki.netty.jsonrpc.JsonRpcResponse;
 import io.netty.channel.ChannelHandler.Sharable;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.ChannelPipeline;
 import io.netty.handler.codec.MessageToMessageCodec;
 import io.netty.handler.codec.MessageToMessageDecoder;
 import io.netty.handler.codec.http.websocketx.PingWebSocketFrame;
+import io.netty.handler.codec.json.JsonObjectDecoder;
 import io.netty.handler.timeout.IdleStateEvent;
 
 @Sharable
-public class JsonNodeToJsonRpcObjectDecoder extends MessageToMessageDecoder<JsonNode> {
+class JsonNodeToJsonRpcObjectDecoder extends MessageToMessageDecoder<JsonNode> {
 	private static final Logger log = LoggerFactory.getLogger(JsonNodeToJsonRpcObjectDecoder.class);
-
-	private static final ObjectMapper objectMapper = new ObjectMapper();
-
+	private final JsonRpcClientHandler jsonRpcClientHandler;
+	private final JsonRpcServerHandler jsonRpcServerHandler;
+	
+	JsonNodeToJsonRpcObjectDecoder(JsonRpcClientHandler jsonRpcClientHandler, JsonRpcServerHandler jsonRpcServerHandler) {
+		this.jsonRpcClientHandler = jsonRpcClientHandler;
+		this.jsonRpcServerHandler = jsonRpcServerHandler;
+	}
+	
+	@Override
+	public void handlerAdded(ChannelHandlerContext ctx) throws Exception {
+		ChannelPipeline cp = ctx.pipeline();
+		if (cp.get(JsonRpcClientHandler.class) == null && jsonRpcClientHandler != null) {
+			cp.addAfter(ctx.name(), JsonRpcClientHandler.class.getName(), jsonRpcClientHandler);
+		}
+		if (cp.get(JsonRpcServerHandler.class) == null && jsonRpcServerHandler != null) {
+			cp.addAfter(ctx.name(), JsonRpcServerHandler.class.getName(), jsonRpcServerHandler);
+		}
+	}
+	
 	@Override
 	protected void decode(ChannelHandlerContext ctx, JsonNode msg, List<Object> out) {
 		if (msg.has("method")) {
 			try {
-				out.add(objectMapper.treeToValue(msg, JsonRpcRequest.class));
+				out.add(JsonUtils.MAPPER.treeToValue(msg, JsonRpcRequest.class));
 			} catch (JsonProcessingException e) {
 				throw JsonRpcException.INVALID_REQUEST;
 			}
 		} else if (msg.has("error") || msg.has("result")) {
 			try {
-				out.add(objectMapper.treeToValue(msg, JsonRpcResponse.class));
+				out.add(JsonUtils.MAPPER.treeToValue(msg, JsonRpcResponse.class));
 			} catch (JsonProcessingException e) {
 				log.warn("Invalid response received: channel:{}; remoteAddress:{}; cause:{}",
 						ctx.channel().id().asLongText(), ctx.channel().remoteAddress(), e.toString());
