@@ -71,6 +71,10 @@ public class JsonRpcServerHandler extends SimpleChannelInboundHandler<JsonRpcReq
 		final String partialMethodName = getMethodName(msg.getMethod());
 		final String serviceName = getServiceName(msg.getMethod());
 
+		if (partialMethodName.equals("")) {
+			returnError(ctx, jsonrpc, msg.getId(), new JsonRpcException("Method not found", JsonRpcException.METHOD_NOT_FOUND));
+			return;
+		}
 		Set<Method> methods = findMatchingMethodsByName(getHandlerInterfaces(serviceName), partialMethodName);
 		if (methods.isEmpty()) {
 			returnError(ctx, jsonrpc, msg.getId(), new JsonRpcException("Method not found", JsonRpcException.METHOD_NOT_FOUND));
@@ -158,7 +162,7 @@ public class JsonRpcServerHandler extends SimpleChannelInboundHandler<JsonRpcReq
 		}
 	}
 
-	private Throwable getException(final Throwable thrown) {
+	private Throwable getException(Throwable thrown) {
 		Throwable e = thrown;
 		while (InvocationTargetException.class.isInstance(e)) {
 			// noinspection ThrowableResultOfMethodCallIgnored
@@ -182,7 +186,7 @@ public class JsonRpcServerHandler extends SimpleChannelInboundHandler<JsonRpcReq
 	 * @param serviceName the optional name of a service
 	 * @return the class
 	 */
-	protected Class<?>[] getHandlerInterfaces(final String serviceName) {
+	protected Class<?>[] getHandlerInterfaces(String serviceName) {
 		if (remoteInterface != null) {
 			return new Class<?>[] { remoteInterface };
 		} else if (Proxy.isProxyClass(handler.getClass())) {
@@ -199,7 +203,7 @@ public class JsonRpcServerHandler extends SimpleChannelInboundHandler<JsonRpcReq
 	 * @param methodName the JsonNode for the method
 	 * @return the name of the service, or <code>null</code>
 	 */
-	protected String getServiceName(final String methodName) {
+	protected String getServiceName(String methodName) {
 		return null;
 	}
 
@@ -209,7 +213,7 @@ public class JsonRpcServerHandler extends SimpleChannelInboundHandler<JsonRpcReq
 	 * @param methodName the JsonNode for the method
 	 * @return the name of the method that should be invoked
 	 */
-	protected String getMethodName(final String methodName) {
+	protected String getMethodName(String methodName) {
 		return methodName;
 	}
 

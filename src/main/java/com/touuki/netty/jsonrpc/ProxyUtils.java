@@ -8,8 +8,8 @@ public class ProxyUtils {
 
 	@SuppressWarnings("unchecked")
 	public static <T> T createClientProxy(ClassLoader classLoader, Class<T> proxyInterface,
-			JsonRpcClientHandler client, Channel defaultChannel) {
+			JsonRpcClientHandler client) {
 		return (T) Proxy.newProxyInstance(classLoader, new Class<?>[] { proxyInterface },
-				new JsonRpcClientInvocationHandler(client, defaultChannel));
+				new JsonRpcClientInvocationHandler(client));
 	}
 }

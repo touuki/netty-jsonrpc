@@ -17,12 +17,9 @@ import io.netty.channel.group.ChannelGroup;
 public class JsonRpcClientInvocationHandler implements InvocationHandler {
 
 	private final JsonRpcClientHandler client;
-	
-	private Channel defaultChannel;
 
-	JsonRpcClientInvocationHandler(JsonRpcClientHandler client, Channel defaultChannel) {
+	JsonRpcClientInvocationHandler(JsonRpcClientHandler client) {
 		this.client = client;
-		this.defaultChannel = defaultChannel;
 	}
 
 	@Override
@@ -103,7 +100,11 @@ public class JsonRpcClientInvocationHandler implements InvocationHandler {
 			requestData.methodName = method.getName();
 			requestData.timeoutMillisecond = -1;
 		} else {
-			requestData.methodName = jsonRpcMethod.value();
+			if ("".equals(jsonRpcMethod.value())) {
+				requestData.methodName = method.getName();
+			}else {				
+				requestData.methodName = jsonRpcMethod.value();
+			}
 			requestData.timeoutMillisecond = jsonRpcMethod.timeoutMilliseconds();
 			requestMode = jsonRpcMethod.requestMode();
 			paramsPassByObject = jsonRpcMethod.paramsPassByObject();
@@ -111,9 +112,6 @@ public class JsonRpcClientInvocationHandler implements InvocationHandler {
 		requestData.handleRequestMode(method, requestMode);
 		requestData.handleParams(method, args, paramsPassByObject);
 		
-		if (requestData.channel == null) {
-			requestData.channel = defaultChannel;
-		}
 		return requestData;
 	}
 
